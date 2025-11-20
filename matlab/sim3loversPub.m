@@ -119,4 +119,4 @@ annotation('textbox', [0.55 0.96 0.3 0.03], ...
     'Interpreter', 'tex');
 
 %% -------- High-resolution export --------
-exportgraphics(gcf, 'three_lovers_4params_pub.png', 'Resolution', 300);
+exportgraphics(gcf, 'Plots/three_lovers_4params_pub.png', 'Resolution', 300);

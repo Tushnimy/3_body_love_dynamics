@@ -102,7 +102,7 @@ legend([hLegStable, hLegUnstable], ...
        'Location','northwest', 'Box','off');
 
 % 7) Export
-exportgraphics(fig, 'eigenvalue_plot.pdf', 'ContentType','vector');
-exportgraphics(fig, 'eigenvalue_plot.png', 'Resolution', 300);
+exportgraphics(fig, 'Plots/eigenvalue_plot.pdf', 'ContentType','vector');
+exportgraphics(fig, 'Plots/eigenvalue_plot.png', 'Resolution', 300);
 
 disp('Plot saved as eigenvalue_plot.pdf and eigenvalue_plot.png');
