@@ -466,9 +466,9 @@ save_dir = @__DIR__
 M_int = Array{Int}(M)
 
 # Save all files in the script directory
-writedlm(joinpath(save_dir, "M.csv"), M_int, ',')
-writedlm(joinpath(save_dir, "X.csv"), collect(X), ',')
-writedlm(joinpath(save_dir, "Y.csv"), collect(Y), ',')
+writedlm(joinpath(save_dir, "Data/M.csv"), M_int, ',')
+writedlm(joinpath(save_dir, "Data/X.csv"), collect(X), ',')
+writedlm(joinpath(save_dir, "Data/Y.csv"), collect(Y), ',')
 
 
 ###############################

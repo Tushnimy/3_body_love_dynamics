@@ -109,12 +109,12 @@ display(plt)
 save_dir = @__DIR__
 
 # LLE matrix
-writedlm(joinpath(save_dir, "M_LLE.csv"), M, ',')
+writedlm(joinpath(save_dir, "Data/M_LLE.csv"), M, ',')
 
 # parameter grids
-writedlm(joinpath(save_dir, "X_LLE.csv"), collect(X), ',')
-writedlm(joinpath(save_dir, "Y_LLE.csv"), collect(Y), ',')
+writedlm(joinpath(save_dir, "Data/X_LLE.csv"), collect(X), ',')
+writedlm(joinpath(save_dir, "Data/Y_LLE.csv"), collect(Y), ',')
 
 # periodic candidates (optional)
-writedlm(joinpath(save_dir, "periodic_px.csv"), px, ',')
-writedlm(joinpath(save_dir, "periodic_py.csv"), py, ',')
+writedlm(joinpath(save_dir, "Data/periodic_px.csv"), px, ',')
+writedlm(joinpath(save_dir, "Data/periodic_py.csv"), py, ',')
