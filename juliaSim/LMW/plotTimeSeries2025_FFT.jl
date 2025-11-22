@@ -410,7 +410,7 @@ end
 # Parameter sweep & matrix M
 ###############################
 
-nd = 150
+nd = 300
 M  = fill(UInt8(0), nd, nd)  # smaller element type
 
 X = range(-3, stop = 3, length = nd)
