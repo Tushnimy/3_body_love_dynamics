@@ -329,7 +329,15 @@ end
                   space_eps, time_eps,
                   fft_periodic_ratio, fft_quasi_low_ratio)
 
-Return codes:
+Return:
+  (code::UInt8,
+   valid_fft::Bool,
+   dom_ratio::Float64,
+   n_eff::Float64,
+   total_power::Float64,
+   var_state::Float64)
+
+Codes:
  2 = fixed point
  1 = periodic
  4 = quasi-periodic
@@ -349,13 +357,19 @@ function classify_tail(
     fft_comp::Int = 1,          # which y-component to FFT (1 = y1)
     fft_min_points::Int = fft_min_points,
     fft_max_points::Int = fft_max_points
-)::UInt8
+)
     n = length(tail)
-    n < 10 && return UInt8(0) # too short to say much
+    if n < 10
+        var_state = state_variation(tail, size)
+        return (UInt8(0), false, 0.0, 0.0, 0.0, var_state)
+    end
+
+    # Overall state variation on the tail
+    var_state = state_variation(tail, size)
 
     # 1. Fixed point?
     if is_fixed_point(tail, size; eps_state = fp_eps_state, eps_deriv = fp_eps_deriv)
-        return UInt8(2)
+        return (UInt8(2), false, 0.0, 0.0, 0.0, var_state)
     end
 
     # 2. Maxima-based info
@@ -377,32 +391,53 @@ function classify_tail(
     # 4. Periodic classification (maxima AND/OR FFT)
     if periodic_by_maxima ||
        (valid_fft && dom_ratio >= fft_periodic_ratio && n_eff <= 2.0)
-        return UInt8(1)  # periodic
+        return (UInt8(1), valid_fft, dom_ratio, n_eff, total_power, var_state)
     end
 
     # 5. Non-trivial dynamics?
-    var_state = state_variation(tail, size)
     if var_state <= fp_eps_state
         # State almost flat but failed fixed-point test: ambiguous -> 0
-        return UInt8(0)
+        return (UInt8(0), valid_fft, dom_ratio, n_eff, total_power, var_state)
     end
 
     # 6. Quasi-periodic vs chaotic / irregular
-    # Heuristic:
-    #  - valid FFT, moderate concentration of power over a handful of frequencies
-    #    -> quasi-periodic (4)
-    #  - else -> chaotic / irregular (5)
     if valid_fft
         if dom_ratio >= fft_quasi_low_ratio &&
            dom_ratio < fft_periodic_ratio &&
            2.0 <= n_eff <= 20.0
-            return UInt8(4)  # quasi-periodic: a few active lines
+            return (UInt8(4), true, dom_ratio, n_eff, total_power, var_state)
         else
-            return UInt8(5)  # chaotic / irregular spectrum
+            return (UInt8(5), true, dom_ratio, n_eff, total_power, var_state)
         end
     else
         # no reliable FFT but nontrivial variation: treat as chaotic/irregular
-        return UInt8(5)
+        return (UInt8(5), false, 0.0, 0.0, 0.0, var_state)
+    end
+end
+
+###############################
+# Quality scores for "best" signals
+###############################
+
+# These are heuristic; you can tweak them later.
+# Larger score = "better" representative of that class.
+
+# Periodic: want very sharp single line (large dom_ratio, small n_eff)
+# and nontrivial amplitude (var_state).
+periodic_quality(dom_ratio, n_eff, var_state) =
+    dom_ratio / max(n_eff, 1.0) * log10(1 + var_state)
+
+# Quasi-periodic: want a few strong lines (moderate dom_ratio, moderate n_eff)
+quasi_quality(dom_ratio, n_eff, var_state) =
+    dom_ratio / max(n_eff, 2.0) * log10(1 + var_state)
+
+# Chaotic: want broad spectrum (large n_eff, small dom_ratio) and decent amplitude
+function chaotic_quality(dom_ratio, n_eff, var_state, valid_fft)
+    if valid_fft
+        return n_eff * (1 - dom_ratio) * log10(1 + var_state)
+    else
+        # If FFT invalid, fall back to just amplitude
+        return log10(1 + var_state)
     end
 end
 
@@ -419,6 +454,12 @@ Y = range(-3, stop = 3, length = nd)
 # System parameters: last two entries (x, y) will be varied
 constant_params = (-1.0, 1.0, 1.0, -1.0, -1.8, -1.8)
 size = 8  # dimension of state vector
+
+# Storage for FFT-based "good" examples:
+# (j1, j2, valid_fft, dom_ratio, n_eff, total_power, var_state, quality)
+periodic_data = Vector{NTuple{8,Float64}}()
+quasi_data    = Vector{NTuple{8,Float64}}()
+chaotic_data  = Vector{NTuple{8,Float64}}()
 
 for (i, x) in enumerate(X)
     for (j, y) in enumerate(Y)
@@ -439,7 +480,7 @@ for (i, x) in enumerate(X)
         tail_start = Int(floor(0.7 * n))
         tail = @view series[tail_start:end]
 
-        cls = classify_tail(
+        cls, valid_fft, dom_ratio, n_eff, total_power, var_state = classify_tail(
             tail, f, size;
             fp_eps_state        = fp_threshold,
             fp_eps_deriv        = fp_threshold,
@@ -453,9 +494,24 @@ for (i, x) in enumerate(X)
         )
 
         M[j, i] = cls
+
+        # Store FFT metrics + quality for relevant classes
+        jf = float(x)
+        kg = float(y)
+        vff = valid_fft ? 1.0 : 0.0
+
+        if cls == UInt8(1)  # periodic
+            q = periodic_quality(dom_ratio, n_eff, var_state)
+            push!(periodic_data, (jf, kg, vff, dom_ratio, n_eff, total_power, var_state, q))
+        elseif cls == UInt8(4)  # quasi-periodic
+            q = quasi_quality(dom_ratio, n_eff, var_state)
+            push!(quasi_data, (jf, kg, vff, dom_ratio, n_eff, total_power, var_state, q))
+        elseif cls == UInt8(5)  # chaotic / irregular
+            q = chaotic_quality(dom_ratio, n_eff, var_state, valid_fft)
+            push!(chaotic_data, (jf, kg, vff, dom_ratio, n_eff, total_power, var_state, q))
+        end
     end
 end
-
 
 using DelimitedFiles
 
@@ -465,11 +521,38 @@ save_dir = @__DIR__
 # Convert M to plain Int matrix
 M_int = Array{Int}(M)
 
-# Save all files in the script directory
+# Save classification matrix and grids
 writedlm(joinpath(save_dir, "Data/M.csv"), M_int, ',')
 writedlm(joinpath(save_dir, "Data/X.csv"), collect(X), ',')
 writedlm(joinpath(save_dir, "Data/Y.csv"), collect(Y), ',')
 
+# Helper to write class data sorted by quality (descending)
+function write_class_data(filename::String, data::Vector{NTuple{8,Float64}})
+    n = length(data)
+    n == 0 && return
+    A = Array{Float64}(undef, n, 8)
+    for (i, (j1, j2, vff, domr, neff, totp, varst, q)) in enumerate(data)
+        @inbounds begin
+            A[i, 1] = j1
+            A[i, 2] = j2
+            A[i, 3] = vff
+            A[i, 4] = domr
+            A[i, 5] = neff
+            A[i, 6] = totp
+            A[i, 7] = varst
+            A[i, 8] = q
+        end
+    end
+    # sort by quality (col 8) descending
+    perm = sortperm(A[:, 8], rev = true)
+    A_sorted = A[perm, :]
+    writedlm(joinpath(save_dir, filename), A_sorted, ',')
+end
+
+# Write out "best" spectral points per class
+write_class_data("Data/periodic_fft_points.csv", periodic_data)
+write_class_data("Data/quasi_fft_points.csv",    quasi_data)
+write_class_data("Data/chaotic_fft_points.csv",  chaotic_data)
 
 ###############################
 # Basic visualization (we'll refine later)
@@ -485,5 +568,3 @@ parameterPlot = heatmap(
 )
 
 display(parameterPlot)
-
-

@@ -4,16 +4,16 @@ clear; close all; clc
 % Each row is [j1, j2].
 % Replace these with whatever 4 pairs you want to showcase.
 paramPairs = [
-    -2.80  -2.84;   % example: class 0 (aperiodic)
-    -2.88  -2.28;   % example: class 1 (periodic)
-    -2.72  -1.83;   % example: class 2 (fixed point)
-     2.88  -1.35;   % example: class 3 (blow-up / unbounded)
+    3  -2;   % example: class 0 (aperiodic)
+    -1.5  -2.8;   % example: class 1 (periodic)
+    0.1  0.1;   % example: class 2 (fixed point)
+     -2  -2;   % example: class 3 (blow-up / unbounded)
 ];
 
 nPairs  = size(paramPairs, 1);    % should be 4
-nIC     = 6;                      % number of random initial conditions per (j1,j2)
-Tfinal  = 1e5;                    % final integration time
-Twindow = 2e3;                    % only plot the tail in time (remove transient)
+nIC     = 1;                      % number of random initial conditions per (j1,j2)
+Tfinal  = 2e5;                    % final integration time
+Twindow = 1e2;                    % only plot the tail in time (remove transient)
 
 %% -------- Base parameters (fixed part of 'param') --------
 % Original code: param = [-1;1;1;-1;-1.8;-1.8;I;J];
@@ -59,7 +59,7 @@ for idx = 1:nPairs
         mask = (t > (Tfinal - Twindow));
 
         % Layla's love (real part) vs time
-        plot(ax1, t(mask), x(mask, 1));
+        plot(ax1, t(mask), x(mask, 2));
 
         % Trajectory in (L_r, L_i)
         plot(ax2, x(:,1), x(:,2));
@@ -68,7 +68,7 @@ for idx = 1:nPairs
     % ----- Style left axis (Layla's love) -----
     %title(ax1, sprintf('j_1 = %.2f, j_2 = %.2f', I, J), ...
     %      'Interpreter', 'tex', 'FontWeight', 'normal');
-    ylabel(ax1, 'L_r', 'Interpreter', 'tex');
+    ylabel(ax1, 'L_i', 'Interpreter', 'tex');
 
     if idx == nPairs
         xlabel(ax1, 'time');
