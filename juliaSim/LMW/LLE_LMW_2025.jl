@@ -15,7 +15,7 @@ using DelimitedFiles
 # Parameters
 ##########################
 
-nd   = 100          # grid resolution
+nd   = 300          # grid resolution
 size = 8            # state dimension
 
 X = range(-3, stop = 3, length = nd)
