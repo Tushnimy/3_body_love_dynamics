@@ -1,34 +1,53 @@
 clear; close all; clc
 
 %% -------- Parameter pairs (j1, j2) to test --------
-% Each row is [j1, j2].
-% Replace these with whatever 4 pairs you want to showcase.
 paramPairs = [
-    3  -2;   % example: class 0 (aperiodic)
-    -1.5  -2.8;   % example: class 1 (periodic)
-    0.1  0.1;   % example: class 2 (fixed point)
-     -2  -2;   % example: class 3 (blow-up / unbounded)
+    2.678929765886290   2.49832775919732;  % class 0 (aperiodic)
+    3                   1.4548494983277591;  % class 1 (periodic)
+    0.05                0;                 % class 2 (fixed point)
+   -1                  -3;                 % class 3 (blow-up / unbounded)
 ];
 
 nPairs  = size(paramPairs, 1);    % should be 4
 nIC     = 1;                      % number of random initial conditions per (j1,j2)
-Tfinal  = 2e5;                    % final integration time
-Twindow = 1e2;                    % only plot the tail in time (remove transient)
+
+%% -------- Per-pair integration times --------
+Tfinal_vec = [
+    1e6;      % for pair 1
+    1e7;      % for pair 2
+    1e2;      % for pair 3
+    1e6;      % for pair 4
+];
+
+%% -------- Per-pair plotting windows (different per subplot) --------
+% Left column: Layla's love vs time
+timeWindows_L = [
+    9e5     1e6;     % pair 1, time-series window
+    9.99999e6     1e7;     % pair 2
+    0       15;      % pair 3
+    9.9995e5     1e6;     % pair 4
+];
+
+% Right column: trajectories in (L_r, L_i)
+% (Here you can choose *different* windows if you like.)
+timeWindows_traj = [
+    1e5   1e6;     % pair 1, phase-portrait window
+    9.99999e6   1e7;     % pair 2
+    0      20;     % pair 3
+    9.99e5     1e6;     % pair 4
+];
 
 %% -------- Base parameters (fixed part of 'param') --------
-% Original code: param = [-1;1;1;-1;-1.8;-1.8;I;J];
-% Keep first 6 fixed, last two will be set per pair.
 param_base = [-1; 1; 1; -1; -1.8; -1.8; 0; 0];
 
 %% -------- Initial conditions --------
 rng(1);                            % for reproducibility
-x0 = -1 + 2.*rand(nIC, 8);         % 6 random ICs in [-1,1]^8
+x0 = -1 + 2.*rand(nIC, 8);         % random ICs in [-1,1]^8
 
 %% -------- Figure & layout (4 rows x 2 columns) --------
 figure(1); clf
-set(gcf, 'Color', 'w', 'Position', [100 100 900 1000]);  % big white figure
+set(gcf, 'Color', 'w', 'Position', [100 100 900 1000]);
 
-% Publication-ish defaults
 set(groot, 'DefaultAxesFontName', 'Times New Roman');
 set(groot, 'DefaultAxesFontSize', 10);
 set(groot, 'DefaultLineLineWidth', 0.8);
@@ -44,6 +63,17 @@ for idx = 1:nPairs
     param(7) = I;
     param(8) = J;
 
+    % ----- current integration time -----
+    Tfinal = Tfinal_vec(idx);
+    t_span = [0, Tfinal];
+
+    % ----- current plotting windows -----
+    tL_min = timeWindows_L(idx, 1);
+    tL_max = timeWindows_L(idx, 2);
+
+    tT_min = timeWindows_traj(idx, 1);
+    tT_max = timeWindows_traj(idx, 2);
+
     % ----- Left subplot: Layla's love vs time -----
     ax1 = nexttile;
     hold(ax1, 'on');
@@ -53,52 +83,41 @@ for idx = 1:nPairs
     hold(ax2, 'on');
 
     for k = 1:nIC
-        [t, x] = ode45(@(t,x) three_lovers(t, x, param), [0 Tfinal], x0(k,:));
+        [t, x] = ode45(@(t,x) three_lovers(t, x, param), t_span, x0(k,:));
 
-        % Tail of the time series (to avoid transient)
-        mask = (t > (Tfinal - Twindow));
+        % Pair & subplot-specific masks
+        mask_L   = (t >= tL_min) & (t <= tL_max);   % for time-series
+        mask_trj = (t >= tT_min) & (t <= tT_max);   % for trajectories
 
         % Layla's love (real part) vs time
-        plot(ax1, t(mask), x(mask, 2));
+        plot(ax1, t(mask_L), x(mask_L, 1));
 
-        % Trajectory in (L_r, L_i)
-        plot(ax2, x(:,1), x(:,2));
+        % Trajectory in (L_r, L_i), using *different* mask if desired
+        plot(ax2, x(mask_trj, 1), x(mask_trj, 2));
     end
 
     % ----- Style left axis (Layla's love) -----
-    %title(ax1, sprintf('j_1 = %.2f, j_2 = %.2f', I, J), ...
-    %      'Interpreter', 'tex', 'FontWeight', 'normal');
-    ylabel(ax1, 'L_i', 'Interpreter', 'tex');
-
+    ylabel(ax1, 'L_r', 'Interpreter', 'tex');
     if idx == nPairs
         xlabel(ax1, 'time');
     else
-        set(ax1, 'XTickLabel', []);   % hide x-labels for upper rows
+        set(ax1, 'XTickLabel', []);
     end
-
-    grid(ax1, 'on');
-    box(ax1, 'on');
+    grid(ax1, 'on'); box(ax1, 'on');
 
     % ----- Style right axis (trajectory) -----
-    %title(ax2, 'Trajectory', 'FontWeight', 'normal');
     ylabel(ax2, 'L_i', 'Interpreter', 'tex');
-
     if idx == nPairs
         xlabel(ax2, 'L_r', 'Interpreter', 'tex');
     else
         set(ax2, 'XTickLabel', []);
     end
-
-    grid(ax2, 'on');
-    box(ax2, 'on');
+    grid(ax2, 'on'); box(ax2, 'on');
 
     set([ax1, ax2], 'LineWidth', 0.8, 'FontSize', 10);
 end
 
-%% -------- Global column headings (no tiles consumed) --------
-% Normalized figure coordinates: [x y width height]
-
-% Left column: "Layla's love"
+%% -------- Global column headings --------
 annotation('textbox', [0.15 0.96 0.3 0.03], ...
     'String', 'Layla''s love', ...
     'HorizontalAlignment', 'center', ...
@@ -108,7 +127,6 @@ annotation('textbox', [0.15 0.96 0.3 0.03], ...
     'LineStyle', 'none', ...
     'Interpreter', 'tex');
 
-% Right column: "Trajectories"
 annotation('textbox', [0.55 0.96 0.3 0.03], ...
     'String', 'Trajectories', ...
     'HorizontalAlignment', 'center', ...

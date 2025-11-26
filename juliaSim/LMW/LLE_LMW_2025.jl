@@ -10,6 +10,7 @@ using Plots
 using DelimitedFiles
 
 # use default backend (GR) for speed; no plotly() to avoid warnings
+gr()
 
 ##########################
 # Parameters
@@ -18,26 +19,32 @@ using DelimitedFiles
 nd   = 300          # grid resolution
 size = 8            # state dimension
 
-X = range(-3, stop = 3, length = nd)
+X = range(0, stop = 6, length = nd)
 Y = range(-3, stop = 3, length = nd)
 
 constant_params3 = (-1.0, 1.0, 1.0, -1.0, -1.8, -1.8)
 constant_params  = (-1.0, 1.0)   # currently unused here
 
 # LLE_rk4 parameters
-T_final    = 1e4   # total integration time
-transient  = 10.0  # time to discard before averaging
+T_final    = 1e4    # total integration time
+transient  = 10.0   # time to discard before averaging
 dt         = 1e-3
 nsteps_max = 10000
 
-periodicTol = 1e-3  # |LLE| < periodicTol treated as "periodic-ish"
+# classification thresholds
+periodicTol = 1e-3   # |LLE| < periodicTol treated as "periodic-ish"
+chaosTol    = 5e-1   # LLE > chaosTol treated as "chaotic-ish" (tune as needed)
 
 # Matrix of Lyapunov exponents: NaN = unbound / undefined
 M = fill(NaN, nd, nd)
 
-# Periodic candidates in parameter space (for later plotting if you like)
+# Periodic candidates in parameter space (for later plotting)
 px = Float64[]
 py = Float64[]
+
+# Chaotic candidates in parameter space
+cx = Float64[]
+cy = Float64[]
 
 ##########################
 # LLE sweep
@@ -68,6 +75,11 @@ for (i, x) in enumerate(X)
         if abs(LLE) < periodicTol
             push!(px, x)
             push!(py, y)
+
+        # Mark "chaotic-ish" based on clearly positive LLE
+        elseif LLE > chaosTol
+            push!(cx, x)
+            push!(cy, y)
         end
     end
 
@@ -89,16 +101,25 @@ clims = (-maxAbs, maxAbs)
 
 plt = heatmap(
     X, Y, M;
-    xlabel  = L"j_1",
-    ylabel  = L"j_2",
-    title   = "Largest Lyapunov exponent",
-    size    = (800, 700),
+    xlabel   = L"j_1",
+    ylabel   = L"j_2",
+    title    = "Largest Lyapunov exponent",
+    size     = (800, 700),
     colorbar = true,
-    clims   = clims,
+    clims    = clims,
 )
 
-plot!(plt, X, X; color = :black, linestyle = :dash, label = L"j_1=j_2")
-scatter!(plt, px, py; color = :orange, ms = 3, label = "|LLE| < $(periodicTol)")
+# periodic-ish points
+#scatter!(plt, px, py;
+#        color = :orange,
+#        ms    = 3,
+#        label = "|LLE| < $(periodicTol)")
+
+# chaotic-ish points
+#scatter!(plt, cx, cy;
+#        color = :cyan,
+#        ms    = 3,
+#        label = L"\lambda_{\max} > $(chaosTol)")
 
 display(plt)
 
@@ -109,12 +130,16 @@ display(plt)
 save_dir = @__DIR__
 
 # LLE matrix
-writedlm(joinpath(save_dir, "Data/M_LLE.csv"), M, ',')
+writedlm(joinpath(save_dir, "Data/M_LLE_shift.csv"), M, ',')
 
 # parameter grids
-writedlm(joinpath(save_dir, "Data/X_LLE.csv"), collect(X), ',')
-writedlm(joinpath(save_dir, "Data/Y_LLE.csv"), collect(Y), ',')
+writedlm(joinpath(save_dir, "Data/X_LLE_shift.csv"), collect(X), ',')
+writedlm(joinpath(save_dir, "Data/Y_LLE_shift.csv"), collect(Y), ',')
 
 # periodic candidates (optional)
-writedlm(joinpath(save_dir, "Data/periodic_px.csv"), px, ',')
-writedlm(joinpath(save_dir, "Data/periodic_py.csv"), py, ',')
+writedlm(joinpath(save_dir, "Data/periodic_px_shift.csv"), px, ',')
+writedlm(joinpath(save_dir, "Data/periodic_py_shift.csv"), py, ',')
+
+# chaotic candidates (optional)
+writedlm(joinpath(save_dir, "Data/chaotic_cx_shift.csv"), cx, ',')
+writedlm(joinpath(save_dir, "Data/chaotic_cy_shift.csv"), cy, ',')

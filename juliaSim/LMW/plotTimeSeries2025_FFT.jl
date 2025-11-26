@@ -415,6 +415,86 @@ function classify_tail(
     end
 end
 
+"""
+    is_blowup_trajectory(series, size;
+                         R_escape=50.0,
+                         growth_factor=5.0,
+                         tail_frac=0.15,
+                         min_points_tail=20)
+
+Heuristic blow-up detector:
+
+- Compute r_k = ‖y_k‖₂ along the trajectory.
+- If r_max < R_escape => not blow-up.
+- Find first index where r_k ≥ R_escape.
+- Look at the tail from max(that index, floor((1-tail_frac)*n)) to end.
+- If the tail norms are mostly increasing and the final norm is at least
+  `growth_factor * R_escape`, declare blow-up.
+
+Tunables:
+- R_escape: radius beyond which state is "unreal" for your system.
+- growth_factor: how much growth beyond R_escape counts as escape.
+- tail_frac: fraction of trajectory considered as final "escape phase".
+"""
+function is_blowup_trajectory(
+    series,
+    size::Int;
+    R_escape::Float64 = 50.0,
+    growth_factor::Float64 = 5.0,
+    tail_frac::Float64 = 0.15,
+    min_points_tail::Int = 20,
+)
+    n = length(series)
+    n == 0 && return false
+
+    # Norm of y at each stored time
+    norms = Vector{Float64}(undef, n)
+    @inbounds for k in 1:n
+        row = series[k]
+        s = 0.0
+        for j in 1:size
+            v = row[1 + j]
+            s += v*v
+        end
+        norms[k] = sqrt(s)
+    end
+
+    r_max = maximum(norms)
+    # Never even reached the escape radius -> not blow-up
+    r_max < R_escape && return false
+
+    # First time we cross the escape radius
+    idx_first = findfirst(>=(R_escape), norms)
+    idx_first === nothing && return false
+
+    # Tail region to inspect for monotone-ish escape
+    start_tail = max(idx_first, Int(floor((1 - tail_frac) * n)))
+    start_tail = min(start_tail, n)  # safety
+    length(start_tail:n) < min_points_tail && return false
+
+    tail_norms = @view norms[start_tail:end]
+
+    # Simple monotonicity check: what fraction of differences are ≥ 0?
+    inc_count = 0
+    total_diff = length(tail_norms) - 1
+    @inbounds for k in 1:total_diff
+        if tail_norms[k+1] >= tail_norms[k]
+            inc_count += 1
+        end
+    end
+    frac_increasing = total_diff > 0 ? inc_count / total_diff : 0.0
+
+    # Require:
+    # - norms mostly increasing in the tail
+    # - final norm significantly beyond R_escape
+    if frac_increasing ≥ 0.8 && tail_norms[end] ≥ growth_factor * R_escape
+        return true
+    else
+        return false
+    end
+end
+
+
 ###############################
 # Quality scores for "best" signals
 ###############################
@@ -448,8 +528,8 @@ end
 nd = 300
 M  = fill(UInt8(0), nd, nd)  # smaller element type
 
-X = range(-3, stop = 3, length = nd)
-Y = range(-3, stop = 3, length = nd)
+X = range(0.0, stop = 6.0, length = nd)
+Y = range(-3.0, stop = 3.0, length = nd)
 
 # System parameters: last two entries (x, y) will be varied
 constant_params = (-1.0, 1.0, 1.0, -1.0, -1.8, -1.8)
@@ -522,9 +602,9 @@ save_dir = @__DIR__
 M_int = Array{Int}(M)
 
 # Save classification matrix and grids
-writedlm(joinpath(save_dir, "Data/M.csv"), M_int, ',')
-writedlm(joinpath(save_dir, "Data/X.csv"), collect(X), ',')
-writedlm(joinpath(save_dir, "Data/Y.csv"), collect(Y), ',')
+writedlm(joinpath(save_dir, "Data/M_shift.csv"), M_int, ',')
+writedlm(joinpath(save_dir, "Data/X_shift.csv"), collect(X), ',')
+writedlm(joinpath(save_dir, "Data/Y_shift.csv"), collect(Y), ',')
 
 # Helper to write class data sorted by quality (descending)
 function write_class_data(filename::String, data::Vector{NTuple{8,Float64}})
@@ -550,9 +630,9 @@ function write_class_data(filename::String, data::Vector{NTuple{8,Float64}})
 end
 
 # Write out "best" spectral points per class
-write_class_data("Data/periodic_fft_points.csv", periodic_data)
-write_class_data("Data/quasi_fft_points.csv",    quasi_data)
-write_class_data("Data/chaotic_fft_points.csv",  chaotic_data)
+write_class_data("Data/periodic_fft_points_shift.csv", periodic_data)
+write_class_data("Data/quasi_fft_points_shift.csv",    quasi_data)
+write_class_data("Data/chaotic_fft_points_shift.csv",  chaotic_data)
 
 ###############################
 # Basic visualization (we'll refine later)
