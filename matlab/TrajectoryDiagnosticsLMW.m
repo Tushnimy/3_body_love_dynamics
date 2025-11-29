@@ -2,31 +2,32 @@ clear; close all; clc
 
 %% -------- User choices --------
 % Choose your parameter pair (j1, j2):
-j1 = 2.007;   
-j2 = 2.1; %-1.9966555183946488;
+j1 = -1.5569620253164558;   
+j2 = 0.6455696202531646;
 
 % Integration settings
-Tfinal = 1e7;           % total integration time
+Tfinal = 1e5;           % total integration time
 t_span = [0, Tfinal];
 
 % For FFT: choose a uniform sampling step
-dt = 1;                 % adjust as needed (tradeoff: resolution vs speed)
+dt = 5;                 % adjust as needed (tradeoff: resolution vs speed)
 
 % Initial condition (8D)
 rng(1);
 x0 = -1 + 2.*rand(1, 8);
 
+
 %% -------- Base parameters --------
 % param = [a; b; ???; ???; c1; c2; j1; j2]  (your original ordering)
-param_base = [-1; 1; 1; -1; -1.8; -1.8; 0; 0];
+param_base = [-1; 1.0; 1.0; -1.0; 0.0; -1.0; -1.0; 0; 0];
 param = param_base;
-param(7) = j1;
-param(8) = j2;
+param(8) = j1;
+param(9) = j2;
 
 %% -------- Integrate system --------
 fprintf('Integrating three_lovers with j1 = %.6f, j2 = %.6f ...\n', j1, j2);
-
-[t, x] = ode15s(@(t,x) three_lovers(t, x, param), t_span, x0);
+opts   = odeset('RelTol',1e-6,'AbsTol',1e-8,'MaxStep',1);
+[t, x] = ode45(@(t,x) three_lovers(t, x, param), t_span, x0);
 
 % Extract Layla's and Majnun's loves:
 Lr = x(:,1);   % Layla real
@@ -35,7 +36,7 @@ Mr = x(:,3);   % Majnun real (assumed)
 Mi = x(:,4);   % Majnun imag (assumed)
 
 %% -------- Trim transient (for diagnostics) --------
-fracTransient = 0.95;    % ignore first 80% of trajectory for plots/diagnostics
+fracTransient = 0.9;    
 N = numel(t);
 idx_tr = ceil(fracTransient * N) : N;
 
@@ -60,17 +61,17 @@ fs = 1/dt;
 
 %% -------- Power spectrum via Welch --------
 % Use Welch for smooth spectrum
-%nfft  = 2^nextpow2(numel(Lr_uniform_m));
-%win   = floor(numel(Lr_uniform_m) / 8);
-%if mod(win, 2) == 1
-%    win = win + 1;
-%end
-%if win < 32
-%    win = min(numel(Lr_uniform_m), 256);
-%end
-%noverlap = floor(0.5 * win);
+nfft  = 2^nextpow2(numel(Lr_uniform_m));
+win   = floor(numel(Lr_uniform_m) / 8);
+if mod(win, 2) == 1
+    win = win + 1;
+end
+if win < 32
+    win = min(numel(Lr_uniform_m), 256);
+end
+noverlap = floor(0.5 * win);
 
-%[Pxx, f] = pwelch(Lr_uniform_m, win, noverlap, nfft, fs);
+[Pxx, f] = pwelch(Lr_uniform_m, win, noverlap, nfft, fs);
 
 %% -------- Poincaré section (Mr vs Mi at Lr = const) --------
 [xP, yP] = poincare_section(Lr_tr, Mr_tr, Mi_tr);
@@ -87,16 +88,20 @@ sgtitle(sprintf('Diagnostics for three lovers: %s', paramStr), ...
 
 %% --- (1) L_r(t) vs time (tail only)
 nexttile;
-plot(t_tr(ceil(0.995 * N_tr):end), Lr_tr(ceil(0.995 * N_tr):end), 'LineWidth', 0.8);
+plot(t_tr(ceil(0.9 * N_tr):end), Lr_tr(ceil(0.9 * N_tr):end), 'LineWidth', 0.8);
 xlabel('t', 'FontName', 'Times New Roman');
 ylabel('L_r(t)', 'FontName', 'Times New Roman');
 title('Time series of L_r(t)', 'FontName', 'Times New Roman');
 grid on; box on;
 set(gca, 'LineWidth', 0.75, 'FontName', 'Times New Roman', 'FontSize', 11);
 
+L = numel(t);
+frac = 0.0;
+start = ceil(frac*N);
+
 %% --- (2) Trajectory in (L_r, L_i)
 nexttile;
-plot(Lr_uniform, Li_uniform, 'LineWidth', 0.3);
+plot(Lr(start+1:end), Li(start+1:end), 'LineWidth', 0.3);
 xlabel('L_r', 'FontName', 'Times New Roman');
 ylabel('L_i', 'FontName', 'Times New Roman');
 title('Trajectory in (L_r, L_i)', 'FontName', 'Times New Roman');
@@ -121,19 +126,26 @@ end
 set(gca, 'LineWidth', 0.75, 'FontName', 'Times New Roman', 'FontSize', 11);
 
 %% --- (4) Power spectrum of L_r
-%nexttile;
-%plot(f, Pxx, 'LineWidth', 0.3);
-%xlim([0, fs/2]);
-%set(gca, 'YScale', 'log');  % log scale usually looks nicer
-%xlabel('Frequency', 'FontName', 'Times New Roman');
-%ylabel('Power', 'FontName', 'Times New Roman');
-%title('Power spectrum of L_r(t)', 'FontName', 'Times New Roman');
-%grid on; box on;
-%set(gca, 'LineWidth', 0.75, 'FontName', 'Times New Roman', 'FontSize', 11);
+nexttile;
+plot(f, Pxx, 'LineWidth', 0.3);
+xlim([0, fs/2]);
+set(gca, 'YScale', 'log');  % log scale usually looks nicer
+xlabel('Frequency', 'FontName', 'Times New Roman');
+ylabel('Power', 'FontName', 'Times New Roman');
+title('Power spectrum of L_r(t)', 'FontName', 'Times New Roman');
+grid on; box on;
+set(gca, 'LineWidth', 0.75, 'FontName', 'Times New Roman', 'FontSize', 11);
 
 % Optional: save as vector PDF for publication
 % exportgraphics(fig, sprintf('diagnostics_j1_%.3f_j2_%.3f.pdf', j1, j2), ...
 %     'ContentType', 'vector');
+
+max_vals = max(x, [], 1);
+min_vals = min(x, [], 1);
+for k = 1:8
+    fprintf("Observable y%d: min = %g, max = %g\n", ...
+            k, min_vals(k), max_vals(k));
+end
 
 %% ------------- Local function(s) ------------- %%
 function [xP, yP] = poincare_section(xObs, x2, x3)

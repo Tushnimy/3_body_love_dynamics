@@ -13,7 +13,7 @@ rng(1);
 x0 = -1 + 2.*rand(1, 8); 
 
 %% -------- Base parameters -------- 
-param_base = [-1; 1; 1; -1; -1.8; -1.8; 0; 0]; 
+param_base = [-1; 1; 1; -1; -1; -1.8; -1.8; 0; 0]; 
 param = param_base; 
 param(7) = j1; 
 param(8) = j2; 

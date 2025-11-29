@@ -2,88 +2,138 @@
 # Setup & imports
 ##########################
 
-include("LyapTryFinal.jl")
+include("LyapTryFinal.jl")  # defines module lyapLMW above
 using LaTeXStrings
 using Main.lyapLMW
 using LinearAlgebra
 using Plots
 using DelimitedFiles
+using StaticArrays
+using Random
 
-# use default backend (GR) for speed; no plotly() to avoid warnings
+# use default backend (GR) for speed
 gr()
+Random.seed!(1234)   # for reproducibility (optional)
 
 ##########################
 # Parameters
 ##########################
 
-nd   = 300          # grid resolution
-size = 8            # state dimension
+size = 8                   # state dimension
+nd   = 80                  # 80x80 grid
 
-X = range(0, stop = 6, length = nd)
-Y = range(-3, stop = 3, length = nd)
+Ttr        = 3000.0        # total transient time budget
+T_LLE      = 500.0         # Lyapunov averaging time
+dt         = 1e-4
+steps      = 15
+time_per_cycle = steps * dt
+iter       = max(Int(floor(T_LLE / time_per_cycle)), 1)
 
-constant_params3 = (-1.0, 1.0, 1.0, -1.0, -1.8, -1.8)
-constant_params  = (-1.0, 1.0)   # currently unused here
+@info "LLE parameters: iter=$iter, steps=$steps, dt=$dt, Ttr=$Ttr, T_LLE=$(iter*steps*dt)"
 
-# LLE_rk4 parameters
-T_final    = 1e4    # total integration time
-transient  = 10.0   # time to discard before averaging
-dt         = 1e-3
-nsteps_max = 10000
+# cheap boundedness pre-check time per IC
+T_check = 1000.0           # you can bump this if needed
 
-# classification thresholds
-periodicTol = 1e-3   # |LLE| < periodicTol treated as "periodic-ish"
-chaosTol    = 5e-1   # LLE > chaosTol treated as "chaotic-ish" (tune as needed)
+# base system parameters (unchanged dynamics)
+constant_params = (-1.0, 1.0, 1.0, -1.0, 0.0, -1.0, -1.0)
+X = range(-3.0, stop = 3.0, length = nd)   # j1
+Y = range(-3.0, stop = 3.0, length = nd)   # j2
 
-# Matrix of Lyapunov exponents: NaN = unbound / undefined
-M = fill(NaN, nd, nd)
+tol         = 5e-2
+periodicTol = tol
+chaosTol    = tol
 
-# Periodic candidates in parameter space (for later plotting)
-px = Float64[]
-py = Float64[]
+M  = fill(NaN, nd, nd)
+px = Float64[]; py = Float64[]
+cx = Float64[]; cy = Float64[]
 
-# Chaotic candidates in parameter space
-cx = Float64[]
-cy = Float64[]
+upper_bound   = 1e9
+max_ic_tries  = 8      # max random ICs per parameter
+
+# diagnostics: 0 = OK, 1 = all ICs fail pre-check,
+#              2 = some pass pre-check but all fail during LLE
+diag_flag = fill(0, nd, nd)
 
 ##########################
-# LLE sweep
+# LLE sweep with IC pre-check & diagnostics
 ##########################
 
-# Option 1: fixed initial tangent direction for all parameters
-u0 = randn(size)
-u0 ./= norm(u0)
+for (i, x) in enumerate(X)      # j1
+    for (j, y) in enumerate(Y)  # j2
 
-for (i, x) in enumerate(X)
-    for (j, y) in enumerate(Y)
-        # copy initial direction so we don't mutate u0
-        u = copy(u0)
+        params = (constant_params..., x, y)
+        f = rhs(params)
 
-        params3 = (constant_params3..., x, y)
+        LLE_val = "unbound"
+        cell_diag = 0
+        any_passed_precheck = false
 
-        LLE = LLE_rk4(rhs3(params3), u, T_final, transient, dt, size, nsteps_max)
+        # --- try several initial conditions ---
+        for attempt in 1:max_ic_tries
+            # random initial condition
+            u0_vec = randn(size)
+            u0_vec ./= norm(u0_vec)
+            u0 = SVector{8,Float64}(u0_vec)
 
-        if LLE == "unbound"
-            # leave M[j,i] = NaN to mark unbounded/escape
+            # 1) cheap boundedness pre-check up to T_check
+            u_check, flag_check = integrate(
+                f, T_check, u0;
+                tol         = 1e-6,
+                upper_bound = upper_bound,
+                h0          = dt,
+                hmax        = 10dt,
+            )
+
+            if flag_check != 0 || !isfinite(norm(u_check))
+                # this IC clearly escapes quickly -> try another
+                cell_diag = 1          # so far, only pre-check failures
+                continue
+            end
+
+            any_passed_precheck = true
+
+            # 2) run LLE from the pre-checked state
+            # remaining transient time after pre-check:
+            #Ttr_eff = max(Ttr - T_check, 0.0)
+            Ttr_eff    = 0.0
+
+            LLE_val = LLE_rk4(
+                f, u_check, iter, steps, dt, size, Ttr_eff;
+                upper_bound = upper_bound,
+            )
+
+            if LLE_val != "unbound"
+                # got a bounded orbit with a finite LLE → keep it
+                cell_diag = 0
+                break
+            else
+                # passed pre-check but blew up later (transient/LLE)
+                cell_diag = 2
+            end
+        end
+
+        if LLE_val == "unbound"
+            # every IC we tried escaped / failed at some stage
+            diag_flag[j, i] = cell_diag
             continue
         end
 
-        # Store LLE
+        # success: store LLE
+        LLE = LLE_val::Float64
         M[j, i] = LLE
+        diag_flag[j, i] = 0
 
-        # Mark "periodic-ish" based on |LLE| ~ 0
+        # classification just for overlays if you want
         if abs(LLE) < periodicTol
-            push!(px, x)
-            push!(py, y)
-
-        # Mark "chaotic-ish" based on clearly positive LLE
+            push!(px, x); push!(py, y)
         elseif LLE > chaosTol
-            push!(cx, x)
-            push!(cy, y)
+            push!(cx, x); push!(cy, y)
+        end
+
+        if j % 40 == 0
+            @info "Finished row $j / $nd for column $i"
         end
     end
-
-    # coarse progress output
     @info "Finished column $i / $nd"
 end
 
@@ -109,18 +159,6 @@ plt = heatmap(
     clims    = clims,
 )
 
-# periodic-ish points
-#scatter!(plt, px, py;
-#        color = :orange,
-#        ms    = 3,
-#        label = "|LLE| < $(periodicTol)")
-
-# chaotic-ish points
-#scatter!(plt, cx, cy;
-#        color = :cyan,
-#        ms    = 3,
-#        label = L"\lambda_{\max} > $(chaosTol)")
-
 display(plt)
 
 ##########################
@@ -128,18 +166,18 @@ display(plt)
 ##########################
 
 save_dir = @__DIR__
+isdir(joinpath(save_dir, "Data")) || mkpath(joinpath(save_dir, "Data"))
 
-# LLE matrix
-writedlm(joinpath(save_dir, "Data/M_LLE_shift.csv"), M, ',')
+# LLE matrix and parameter grids
+writedlm(joinpath(save_dir, "Data/M_LLE.csv"), M, ',')
+writedlm(joinpath(save_dir, "Data/X_LLE.csv"), collect(X), ',')
+writedlm(joinpath(save_dir, "Data/Y_LLE.csv"), collect(Y), ',')
 
-# parameter grids
-writedlm(joinpath(save_dir, "Data/X_LLE_shift.csv"), collect(X), ',')
-writedlm(joinpath(save_dir, "Data/Y_LLE_shift.csv"), collect(Y), ',')
+# Diagnostics: why cells are grey
+writedlm(joinpath(save_dir, "Data/diag_flag.csv"), diag_flag, ',')
 
-# periodic candidates (optional)
-writedlm(joinpath(save_dir, "Data/periodic_px_shift.csv"), px, ',')
-writedlm(joinpath(save_dir, "Data/periodic_py_shift.csv"), py, ',')
-
-# chaotic candidates (optional)
-writedlm(joinpath(save_dir, "Data/chaotic_cx_shift.csv"), cx, ',')
-writedlm(joinpath(save_dir, "Data/chaotic_cy_shift.csv"), cy, ',')
+# periodic / chaotic candidate lists (optional)
+writedlm(joinpath(save_dir, "Data/periodic_px.csv"), px, ',')
+writedlm(joinpath(save_dir, "Data/periodic_py.csv"), py, ',')
+writedlm(joinpath(save_dir, "Data/chaotic_cx_.csv"),  cx, ',')
+writedlm(joinpath(save_dir, "Data/chaotic_cy.csv"),  cy, ',')

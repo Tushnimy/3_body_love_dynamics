@@ -38,7 +38,7 @@ timeWindows_traj = [
 ];
 
 %% -------- Base parameters (fixed part of 'param') --------
-param_base = [-1; 1; 1; -1; -1.8; -1.8; 0; 0];
+param_base = [-1; 1; 1; -1; -1; -1.8; -1.8; 0; 0];
 
 %% -------- Initial conditions --------
 rng(1);                            % for reproducibility
