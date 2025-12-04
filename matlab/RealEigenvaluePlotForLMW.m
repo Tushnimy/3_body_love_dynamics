@@ -2,22 +2,22 @@
 close all; clc; clear;
 
 %% Parameters
-t = 50;
+t = 201;
 r = linspace(-3, 3, t);
 p = zeros(16, t);
 syms x y z w
-a = 2.5;
 sols = [];
 
 %% Main loop: solve equations and compute eigenvalues
 for i = 1:length(r)
     c = r(i);
-
+    a = 3; % -3
+    params = [-1, 1, 1, -1, 0, -1, -1, c, a];
     % System of equations
-    eq1 = -1 + y^2 - 1*(x - 1i*y);
-    eq2 =  1 + x^2 - 1.8*(y - 1i*x) + c*z;
-    eq3 = -1 + w^2 - 1*(z - 1i*w);
-    eq4 =  1 + z^2 - 1.8*(w - 1i*z) + a*x;
+    eq1 = -1 + y^2 + 0.0*(x - 1i*y);
+    eq2 =  1 + x^2 - 1.0*(y - 1i*x) + c*z;
+    eq3 = -1 + w^2 + 0.0*(z - 1i*w);
+    eq4 =  1 + z^2 - 1.0*(w - 1i*z) + a*x;
 
     % Solve symbolic system
     [solx, soly, solz, solw] = solve([eq1, eq2, eq3, eq4], [x, y, z, w]);
@@ -31,8 +31,8 @@ for i = 1:length(r)
 
     % Evaluate Jacobian and maximum real eigenvalue
     for k = 1:16
-        eigenvalues = evalsjacLMW(sols(k,:), c, a);  % user-defined function
-        Real = findMaxRealVec(eigenvalues, 0);       % user-defined function
+        eigenvalues = evalsjacLMW(sols(k,:), params);  
+        Real = findMaxRealVec(eigenvalues, 0);       
         p(k,i) = Real;
     end
 end
@@ -58,7 +58,7 @@ hCurve = plot(r, mat, 'LineWidth', 1.8, 'Color', [0.1 0.1 0.1]);
 green = [0.20 0.60 0.20];   % one stable fixed point (below x-axis)
 blue  = [0.10 0.40 0.90];   % stable LC / multistable periodic/aperiodic (above x-axis)
 
-isStable = mat <= 0;  % true where curve is below or on x-axis
+isStable = mat < 0;  % true where curve is below or on x-axis
 edges = [true, diff(isStable)~=0, true];
 breaks = find(edges); % indices that bound constant-sign segments
 
@@ -76,7 +76,7 @@ for s = 1:numel(breaks)-1
     end
 end
 
-% 3) Draw y-axis only (no default y=0 line; we just colored it)
+% 3) Draw y-axis only 
 xline(0, '-', 'Color', [0 0 0], 'LineWidth', 0.8, 'Alpha', 0.5);
 
 % 4) Labels and title

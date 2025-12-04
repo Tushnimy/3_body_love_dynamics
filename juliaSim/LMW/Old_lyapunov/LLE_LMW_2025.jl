@@ -2,7 +2,7 @@
 # Setup & imports
 ##########################
 
-include("LyapTryFinal.jl")  # defines module lyapLMW above
+include("LyapTryFinal.jl")  
 using LaTeXStrings
 using Main.lyapLMW
 using LinearAlgebra
@@ -11,9 +11,9 @@ using DelimitedFiles
 using StaticArrays
 using Random
 
-# use default backend (GR) for speed
+
 gr()
-Random.seed!(1234)   # for reproducibility (optional)
+Random.seed!(1234)   # for reproducibility 
 
 ##########################
 # Parameters
@@ -32,9 +32,9 @@ iter       = max(Int(floor(T_LLE / time_per_cycle)), 1)
 @info "LLE parameters: iter=$iter, steps=$steps, dt=$dt, Ttr=$Ttr, T_LLE=$(iter*steps*dt)"
 
 # cheap boundedness pre-check time per IC
-T_check = 1000.0           # you can bump this if needed
+T_check = 1000.0           
 
-# base system parameters (unchanged dynamics)
+# base system parameters 
 constant_params = (-1.0, 1.0, 1.0, -1.0, 0.0, -1.0, -1.0)
 X = range(-3.0, stop = 3.0, length = nd)   # j1
 Y = range(-3.0, stop = 3.0, length = nd)   # j2
@@ -103,7 +103,7 @@ for (i, x) in enumerate(X)      # j1
             )
 
             if LLE_val != "unbound"
-                # got a bounded orbit with a finite LLE → keep it
+                # got a bounded orbit with a finite LLE → keep
                 cell_diag = 0
                 break
             else
@@ -123,7 +123,6 @@ for (i, x) in enumerate(X)      # j1
         M[j, i] = LLE
         diag_flag[j, i] = 0
 
-        # classification just for overlays if you want
         if abs(LLE) < periodicTol
             push!(px, x); push!(py, y)
         elseif LLE > chaosTol
@@ -138,7 +137,7 @@ for (i, x) in enumerate(X)      # j1
 end
 
 ##########################
-# Quick Julia plot (optional)
+# Quick Julia plot
 ##########################
 
 finite_vals = filter(!isnan, vec(M))
@@ -173,10 +172,10 @@ writedlm(joinpath(save_dir, "Data/M_LLE.csv"), M, ',')
 writedlm(joinpath(save_dir, "Data/X_LLE.csv"), collect(X), ',')
 writedlm(joinpath(save_dir, "Data/Y_LLE.csv"), collect(Y), ',')
 
-# Diagnostics: why cells are grey
+# Diagnostics: why cells are NaN
 writedlm(joinpath(save_dir, "Data/diag_flag.csv"), diag_flag, ',')
 
-# periodic / chaotic candidate lists (optional)
+# periodic / chaotic candidate lists
 writedlm(joinpath(save_dir, "Data/periodic_px.csv"), px, ',')
 writedlm(joinpath(save_dir, "Data/periodic_py.csv"), py, ',')
 writedlm(joinpath(save_dir, "Data/chaotic_cx_.csv"),  cx, ',')

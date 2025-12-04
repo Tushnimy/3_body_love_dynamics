@@ -9,21 +9,21 @@ using FFTW: fft
 include("MySystem.jl")
 using .MySystem: rhs, rk, integrate
 
-gr()  # plotting backend
+gr()  
 
 ###############################
 # Parameters / thresholds
 ###############################
 
-upper_bound        = 1e10      # smaller than 1e10, escape early
-Tfinal             = 1e4      # smaller for global scan; increase later in ROIs
-fp_threshold       = 5e-2     # for state variation and derivative norm
-periodic_threshold = 5e-2     # spatial closeness for maxima (state space)
-time_threshold     = 5e-2     # temporal closeness for periods
+upper_bound        = 1e15     
+Tfinal             = 1e4      
+fp_threshold       = 1e-6     # for state variation and derivative norm
+periodic_threshold = 1e-3     # spatial closeness for maxima (state space)
+time_threshold     = 1e-3     # temporal closeness for periods
 
-# FFT-based thresholds (heuristic, you can tune)
+# FFT-based thresholds (heuristic)
 fft_min_points       = 256       # minimal number of samples for FFT
-fft_max_points       = 4096      # maximum number of samples (we downsample if longer)
+fft_max_points       = 4096      # maximum number of samples (downsamples if longer)
 fft_periodic_ratio   = 0.7       # dominant peak power / total power to call it periodic
 fft_quasi_low_ratio  = 0.3       # lower bound for quasi-periodic
 
@@ -35,9 +35,10 @@ fft_quasi_low_ratio  = 0.3       # lower bound for quasi-periodic
 # 4 = quasi-periodic
 # 5 = chaotic / irregular
 
-###############################
-# Low-allocation helpers
-###############################
+# In the plotting program we end up combining some of these.
+# Unclassified go into Unbound, since the former came up mainly due to integration failures.
+# Quasi-periodic went with periodic, since there's no 'real' way for a numerical computation to indicate quasi-periodicity (every numerical value is rational)
+
 
 """
     state_variation(time_series, size)
@@ -238,7 +239,7 @@ function is_periodic_from_maxima(
 end
 
 ###############################
-# FFT-based spectral analysis (no sort, downsample)
+# FFT-based spectral analysis (downsample)
 ###############################
 
 """
@@ -465,10 +466,10 @@ for (i, x) in enumerate(X)
             upper_bound = upper_bound,
             # You can tweak these for speed/accuracy:
             tol         = 1e-6,
-            h0          = 1e-3,
-            h_min       = 1e-8,
+            h0          = 1e-2,
+            h_min       = 1e-10,
             h_max       = 1e-1,
-            nsteps_max  = 2_000_000,
+            nsteps_max  = 2000000,
             save_every  = 10,
             max_store   = 5000,
         )

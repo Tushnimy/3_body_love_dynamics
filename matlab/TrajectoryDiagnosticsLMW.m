@@ -1,24 +1,22 @@
 clear; close all; clc
 
 %% -------- User choices --------
-% Choose your parameter pair (j1, j2):
-j1 = -1.5569620253164558;   
-j2 = 0.6455696202531646;
+% Chooseparameter pair (j1, j2):
+j1 = 3.0;  
+j2 = -2.7;   %Poincare for 1.27 is interesting
 
 % Integration settings
-Tfinal = 1e5;           % total integration time
+Tfinal = 1e5;           
 t_span = [0, Tfinal];
-
-% For FFT: choose a uniform sampling step
-dt = 5;                 % adjust as needed (tradeoff: resolution vs speed)
+f = 0.5;
 
 % Initial condition (8D)
-rng(1);
+%rng(1);
 x0 = -1 + 2.*rand(1, 8);
 
 
 %% -------- Base parameters --------
-% param = [a; b; ???; ???; c1; c2; j1; j2]  (your original ordering)
+% param = [a1; a2; a3; a4; b1; b2; j1; j2]  
 param_base = [-1; 1.0; 1.0; -1.0; 0.0; -1.0; -1.0; 0; 0];
 param = param_base;
 param(8) = j1;
@@ -47,32 +45,6 @@ Mr_tr = Mr(idx_tr);
 Mi_tr = Mi(idx_tr);
 
 N_tr = numel(t_tr);
-
-%% -------- Resample onto uniform grid for FFT --------
-t_uniform = (t_tr(1):dt:t_tr(end)).';   % uniform grid on trimmed interval
-Lr_uniform = interp1(t_tr, Lr_tr, t_uniform, 'pchip');
-Li_uniform = interp1(t_tr, Li_tr, t_uniform, 'pchip');
-
-% Remove mean for FFT clarity
-Lr_uniform_m = Lr_uniform - mean(Lr_uniform);
-
-% Sampling frequency
-fs = 1/dt;
-
-%% -------- Power spectrum via Welch --------
-% Use Welch for smooth spectrum
-nfft  = 2^nextpow2(numel(Lr_uniform_m));
-win   = floor(numel(Lr_uniform_m) / 8);
-if mod(win, 2) == 1
-    win = win + 1;
-end
-if win < 32
-    win = min(numel(Lr_uniform_m), 256);
-end
-noverlap = floor(0.5 * win);
-
-[Pxx, f] = pwelch(Lr_uniform_m, win, noverlap, nfft, fs);
-
 %% -------- Poincaré section (Mr vs Mi at Lr = const) --------
 [xP, yP] = poincare_section(Lr_tr, Mr_tr, Mi_tr);
 
@@ -88,20 +60,16 @@ sgtitle(sprintf('Diagnostics for three lovers: %s', paramStr), ...
 
 %% --- (1) L_r(t) vs time (tail only)
 nexttile;
-plot(t_tr(ceil(0.9 * N_tr):end), Lr_tr(ceil(0.9 * N_tr):end), 'LineWidth', 0.8);
+plot(t(t>0), Lr(t>0), 'LineWidth', 0.8);
 xlabel('t', 'FontName', 'Times New Roman');
 ylabel('L_r(t)', 'FontName', 'Times New Roman');
 title('Time series of L_r(t)', 'FontName', 'Times New Roman');
 grid on; box on;
 set(gca, 'LineWidth', 0.75, 'FontName', 'Times New Roman', 'FontSize', 11);
 
-L = numel(t);
-frac = 0.0;
-start = ceil(frac*N);
-
 %% --- (2) Trajectory in (L_r, L_i)
 nexttile;
-plot(Lr(start+1:end), Li(start+1:end), 'LineWidth', 0.3);
+plot(Lr(t>0), Li(t>0), 'LineWidth', 0.3);
 xlabel('L_r', 'FontName', 'Times New Roman');
 ylabel('L_i', 'FontName', 'Times New Roman');
 title('Trajectory in (L_r, L_i)', 'FontName', 'Times New Roman');
@@ -124,21 +92,6 @@ else
     axis off;
 end
 set(gca, 'LineWidth', 0.75, 'FontName', 'Times New Roman', 'FontSize', 11);
-
-%% --- (4) Power spectrum of L_r
-nexttile;
-plot(f, Pxx, 'LineWidth', 0.3);
-xlim([0, fs/2]);
-set(gca, 'YScale', 'log');  % log scale usually looks nicer
-xlabel('Frequency', 'FontName', 'Times New Roman');
-ylabel('Power', 'FontName', 'Times New Roman');
-title('Power spectrum of L_r(t)', 'FontName', 'Times New Roman');
-grid on; box on;
-set(gca, 'LineWidth', 0.75, 'FontName', 'Times New Roman', 'FontSize', 11);
-
-% Optional: save as vector PDF for publication
-% exportgraphics(fig, sprintf('diagnostics_j1_%.3f_j2_%.3f.pdf', j1, j2), ...
-%     'ContentType', 'vector');
 
 max_vals = max(x, [], 1);
 min_vals = min(x, [], 1);
@@ -183,11 +136,18 @@ function [xP, yP] = poincare_section(xObs, x2, x3)
             x2_cross = x2(k) + alpha * (x2(k+1) - x2(k));
             x3_cross = x3(k) + alpha * (x3(k+1) - x3(k));
 
-            xP(end+1,1) = x2_cross; %#ok<AGROW>
-            yP(end+1,1) = x3_cross; %#ok<AGROW>
+            xP(end+1,1) = x2_cross; 
+            yP(end+1,1) = x3_cross; 
         end
     end
 end
 
 
-%P: (4, -2)/ (4, -1.9966555183946488)/ (-2,2.5)
+%P: (1.25, 3), (3,1.6), (3,1.625) 
+%FP: (3, 3): x0 = [-3, -1, 1, 0, -3, -1, 1, 0] + f*(-1 + 2.*rand(1,8));
+%C: (3, -1.0)
+%UB: (3, 3)
+
+% FP: (3, -2.8)  -0.8102   -0.2492    0.0920   -0.7766    0.8089    0.2666    0.8108    0.2611
+% FP: (3, -2.7)   0.7345    0.5325   -0.7301   -0.8702    0.3449   -0.0356   -0.0092   -0.3730
+

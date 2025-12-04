@@ -12,7 +12,7 @@ using StaticArrays
 """
     rhs(a1, a2, a3, a4, b1, b2, b3, j1, j2)
 
-Return a closure `f(x)` implementing the 8D vector field.
+Return `f(x)` implementing the 8D vector field.
 """
 function rhs(a1::Float64, a2::Float64, a3::Float64, a4::Float64,
              b1::Float64, b2::Float64, b3::Float64,
@@ -44,7 +44,7 @@ One adaptive RK(5,4) step (Dormand–Prince) from state `y` with derivative
 Returns:
   z   – 5th order solution
   fz  – f(z)
-  est – error estimate ‖z - w‖₂
+  est – error estimate ‖z - w‖_2
 """
 function rk(y, f, fy, h)
     k1 = fy
@@ -89,7 +89,7 @@ Returns:
                 0 → success
                 1 → step too small / blow-up / max steps reached
 
-Keyword arguments (defaults chosen to be safe for large 2D scans):
+Keyword arguments:
 
   tol          = 1e-6      – error tolerance
   tend         = 1e4       – final time
@@ -115,7 +115,6 @@ function integrate(
     max_store::Int      = 5000,
 )
 
-    # Initial condition (you can change this if you want deterministic ICs)
     y = randn(size)
 
     t  = 0.0
@@ -137,7 +136,7 @@ function integrate(
     push!(time_series, row0)
 
     while t < tend
-        # if step size gets too small, give up gracefully
+        # if step size gets too small, give up
         if h < h_min
             @info "Step size too small at t = $t"
             flag = 1

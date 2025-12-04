@@ -231,7 +231,7 @@ function lyapunov_spectrum(p;
     sol_tr = solve(prob_tr, Tsit5();
                reltol        = reltol,
                abstol        = abstol,
-               maxiters      = 5_000_000,    # <-- this is the key
+               maxiters      = 5_000_000,    
                save_everystep = false)
  #   
     if sol_tr.retcode != :Success

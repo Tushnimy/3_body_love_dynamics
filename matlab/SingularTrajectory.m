@@ -1,6 +1,6 @@
 clear; close all; clc 
 %% -------- User choices -------- 
-% Choose your parameter pair (j1, j2): 
+% Choose parameter pair (j1, j2): 
 j1 = 3; 
 j2 = 3; 
 % Integration settings 
@@ -25,7 +25,7 @@ Lr = x(:,1); Li = x(:,2);
 %% -------- Resample onto uniform grid for FFT -------- 
 t_uniform = (t(1):dt:t(end)).'; 
 Lr_uniform = interp1(t, Lr, t_uniform, 'pchip'); 
-% Remove mean for FFT clarity 
+% Remove mean for FFT
 Lr_uniform = Lr_uniform - mean(Lr_uniform);
 %% -------- FFT -------- 
 N = numel(t_uniform); 
@@ -46,8 +46,7 @@ grid on;
 box on; 
 %% --- (2) L_r(t) vs time 
 N_u = numel(t_uniform); 
-start_idx = ceil(0.9995 * N);
-% Corrected to use ceil for proper indexing 
+start_idx = ceil(0.9995 * N); 
 subplot(1,3,2); 
 plot(t_uniform(start_idx:end), Lr_uniform(start_idx:end), 'LineWidth', 0.8); 
 xlabel('t'); 
@@ -60,7 +59,3 @@ subplot(1,3,3);
 plot(f_pos, abs(Y_pos), 'LineWidth', 0.8); 
 xlabel('Frequency'); ylabel('|FFT(L_r)|'); 
 title('FFT magnitude spectrum'); grid on; box on; 
-
-%AP: (-1.173913, -1.173913), (-2.979933110367893,-0.5719063545150501); 
-%C: (-1, -3) 
-%P: (3, 1.4548494983277591)
